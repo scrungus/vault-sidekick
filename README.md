@@ -41,6 +41,20 @@ Other commands available now:
 
 ## Install
 
+The install script handles the clone-build-configure-cron cycle in one shot:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/scrungus/vault-sidekick/main/install.sh \
+  | bash -s -- --vault ~/path/to/your/vault --skills --launchd
+```
+
+Flags:
+- `--vault PATH` — pre-fill the vault path in the generated config
+- `--skills` — also install kepano's `obsidian-markdown` + `obsidian-cli` skills into `<vault>/.claude/skills/`
+- `--launchd` — also install and load the macOS nightly job at 03:00
+
+Or do it manually:
+
 ```sh
 git clone https://github.com/scrungus/vault-sidekick
 cd vault-sidekick

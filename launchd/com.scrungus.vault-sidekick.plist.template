@@ -7,13 +7,13 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/opt/homebrew/bin/node</string>
-        <string>/Users/tyler/Documents/code/vault-sidekick/dist/cli.js</string>
+        <string>{{NODE_BIN}}</string>
+        <string>{{INSTALL_DIR}}/dist/cli.js</string>
         <string>insights</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/tyler/Documents/code/vault-sidekick</string>
+    <string>{{INSTALL_DIR}}</string>
 
     <key>StartCalendarInterval</key>
     <dict>
@@ -24,14 +24,14 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/tyler/Documents/life/.vault-sidekick/launchd.out.log</string>
+    <string>{{VAULT_PATH}}/.vault-sidekick/launchd.out.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/tyler/Documents/life/.vault-sidekick/launchd.err.log</string>
+    <string>{{VAULT_PATH}}/.vault-sidekick/launchd.err.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <string>{{NODE_DIR}}:/usr/local/bin:/usr/bin:/bin</string>
     </dict>
 
     <key>RunAtLoad</key>
