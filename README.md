@@ -4,7 +4,7 @@ A semi-autonomous organizer for [Obsidian](https://obsidian.md) vaults.
 
 vault-sidekick runs nightly (or on demand) and surfaces the connections, duplicates, and gaps in your knowledge base that you'd never spot by browsing folders. It writes everything to a human-reviewable inbox; destructive operations require a checkbox before they run.
 
-> **Status:** Phase 2 of 4. The read-only `insights` command is shipped. Proposal-driven moves, merges, and PARA classification land in subsequent phases.
+> **Status:** Phase 3 of 4. Read-only `insights`, full `run` pipeline (LINK auto-exec, PARA classification, MERGE proposals with checkbox approval), per-operation git commits with revertable history, and an Obsidian command-palette plugin are all shipped.
 
 ## What it does today
 
@@ -23,9 +23,14 @@ Other commands available now:
 
 | Command | Use it for |
 | --- | --- |
+| `vault-sidekick run` | The full pipeline — process inbox → refresh embeddings → propose → execute non-destructive ops → write daily insights → batch push |
+| `vault-sidekick run --dry-run` | Preview a run without modifying anything |
+| `vault-sidekick run --skip-llm` | Run only the heuristic (LINK) generator; skip Claude-driven PARA/MERGE |
 | `vault-sidekick config` | Print the resolved config (sanity-check your YAML) |
 | `vault-sidekick scan` | Walk the vault and report note count / link health / tag stats |
 | `vault-sidekick embeddings` | Load vault-context embeddings into Orama and print stats |
+| `vault-sidekick embed-missing` | Embed any notes vault-context hasn't indexed yet |
+| `vault-sidekick ask-claude` | Smoke-test the headless Claude wrapper |
 
 ## Phases ahead
 
@@ -51,6 +56,7 @@ curl -fsSL https://raw.githubusercontent.com/scrungus/vault-sidekick/main/instal
 Flags:
 - `--vault PATH` — pre-fill the vault path in the generated config
 - `--skills` — also install kepano's `obsidian-markdown` + `obsidian-cli` skills into `<vault>/.claude/skills/`
+- `--plugin` — also build and install the Obsidian command-palette plugin into `<vault>/.obsidian/plugins/vault-sidekick/`
 - `--launchd` — also install and load the macOS nightly job at 03:00
 
 Or do it manually:
@@ -93,10 +99,11 @@ See [`launchd/README.md`](./launchd/README.md) for verify/uninstall/kickstart.
 
 ## Design
 
-- **No separate embedding pipeline.** vault-sidekick reads vault-context's on-disk embedding JSONs and bundles `@orama/orama` to run vector search in Node. New notes that haven't been indexed by Obsidian yet are flagged, not silently dropped.
-- **No mocked LLM cost.** `insights` is pure local search — no API calls. LLM reasoning enters in Phase 3+ for classification and proposal narration.
-- **Per-operation git commits inside the vault.** Phase 3+ will commit each move/rename/link-edit as its own commit so you can `git revert` any single change.
-- **Approval through Obsidian, not the terminal.** Destructive proposals land in a markdown file inside your vault with checkboxes. You tick them in Obsidian; the next cron run applies them.
+- **No separate embedding pipeline.** vault-sidekick reads vault-context's on-disk embedding JSONs and bundles `@orama/orama` to run vector search in Node. Notes that aren't yet indexed by vault-context can be embedded by `vault-sidekick embed-missing` using the same key/model.
+- **No metered LLM cost.** The agent shells out to your local `claude` CLI so proposal generation runs against your Claude Max subscription instead of paying per-token API access.
+- **Per-operation git commits inside the vault.** Every move, link, and merge is its own commit with the PROP-id in the message, so you can `git revert` any single change. The whole run is pushed once at the end.
+- **Approval through Obsidian.** Destructive proposals land in `_inbox/proposals.md` inside your vault with checkboxes. Tick `approve` (or `reject`) and the next run applies it. Applied proposals get a `revert this` checkbox so you can unwind any change later.
+- **Obsidian command palette.** The shipped Obsidian plugin registers `vault-sidekick: Run`, `Process inbox`, `Generate insights`, `Open today's insights`, `Open proposals`, and a few others. No terminal required day-to-day.
 
 ## Reused work
 

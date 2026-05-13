@@ -2,11 +2,12 @@
 # vault-sidekick installer.
 #
 # Usage:
-#   bash install.sh [--vault PATH] [--skills] [--launchd]
+#   bash install.sh [--vault PATH] [--skills] [--plugin] [--launchd]
 #
 #   --vault PATH   Pre-fill the vault path in the generated config. Required
-#                  if you also pass --skills or --launchd.
+#                  if you also pass --skills, --plugin, or --launchd.
 #   --skills       Also install kepano/obsidian-skills into <vault>/.claude/skills/.
+#   --plugin       Also build and install the Obsidian command-palette plugin.
 #   --launchd      Also install + load the macOS launchd nightly job at 03:00.
 #
 # Env overrides:
@@ -22,6 +23,7 @@ INSTALL_DIR="${VAULT_SIDEKICK_DIR:-$HOME/Documents/code/vault-sidekick}"
 VAULT_PATH=""
 INSTALL_SKILLS=0
 INSTALL_LAUNCHD=0
+INSTALL_PLUGIN=0
 
 say()  { printf "\033[34m[vault-sidekick]\033[0m %s\n" "$*"; }
 warn() { printf "\033[33m[vault-sidekick]\033[0m %s\n" "$*" >&2; }
@@ -32,9 +34,10 @@ while [[ $# -gt 0 ]]; do
     --vault)     VAULT_PATH="$2"; shift 2 ;;
     --vault=*)   VAULT_PATH="${1#*=}"; shift ;;
     --skills)    INSTALL_SKILLS=1; shift ;;
+    --plugin)    INSTALL_PLUGIN=1; shift ;;
     --launchd)   INSTALL_LAUNCHD=1; shift ;;
     -h|--help)
-      sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *) die "unknown flag: $1 (try --help)" ;;
   esac
@@ -116,6 +119,27 @@ if [[ "$INSTALL_SKILLS" -eq 1 ]]; then
       say "  installed $skill → $SKILLS_DIR/$skill"
     fi
   done
+fi
+
+# --- Obsidian plugin (optional) --------------------------------------------
+
+if [[ "$INSTALL_PLUGIN" -eq 1 ]]; then
+  [[ -n "$VAULT_PATH" ]] || die "--plugin requires --vault"
+  [[ -d "$VAULT_PATH" ]] || die "vault not found at $VAULT_PATH"
+
+  PLUGIN_SRC="$INSTALL_DIR/obsidian-plugin"
+  PLUGIN_DEST="$VAULT_PATH/.obsidian/plugins/vault-sidekick"
+
+  if [[ ! -f "$PLUGIN_SRC/main.js" ]]; then
+    say "Building Obsidian plugin"
+    (cd "$PLUGIN_SRC" && npm install --silent && npm run build >/dev/null)
+  fi
+
+  mkdir -p "$PLUGIN_DEST"
+  cp "$PLUGIN_SRC/main.js" "$PLUGIN_DEST/main.js"
+  cp "$PLUGIN_SRC/manifest.json" "$PLUGIN_DEST/manifest.json"
+  say "Installed Obsidian plugin → $PLUGIN_DEST"
+  say "  Enable it in Obsidian: Settings → Community plugins → Vault Sidekick"
 fi
 
 # --- Launchd (optional, macOS) ---------------------------------------------

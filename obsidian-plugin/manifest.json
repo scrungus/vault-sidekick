@@ -1,0 +1,10 @@
+{
+  "id": "vault-sidekick",
+  "name": "Vault Sidekick",
+  "version": "0.1.0",
+  "minAppVersion": "1.0.0",
+  "description": "Run vault-sidekick CLI commands from Obsidian's command palette.",
+  "author": "scrungus",
+  "authorUrl": "https://github.com/scrungus/vault-sidekick",
+  "isDesktopOnly": true
+}

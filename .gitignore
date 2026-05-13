@@ -6,6 +6,10 @@ dist/
 # Personal config — each user has their own; example committed instead
 vault-sidekick.config.yaml
 
+# Obsidian plugin build artifacts (built locally; install.sh rebuilds on demand)
+obsidian-plugin/main.js
+obsidian-plugin/main.js.map
+
 # OS / editors
 .DS_Store
 .vscode/

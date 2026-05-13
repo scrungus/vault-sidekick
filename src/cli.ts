@@ -2,7 +2,10 @@ import { Command } from "commander";
 import { loadConfig } from "./config.js";
 import { scanVault, summarise } from "./vault/scanner.js";
 import { loadEmbeddings } from "./embeddings/loader.js";
+import { refreshMissingEmbeddings } from "./embeddings/embedder.js";
 import { runInsights } from "./commands/insights.js";
+import { runFullPass } from "./commands/run.js";
+import { askClaudeJson } from "./llm/headless.js";
 
 const program = new Command();
 
@@ -22,14 +25,35 @@ program
 
 program
   .command("run")
-  .description("Run the full nightly pass (process inbox → reorg → propose → insights)")
+  .description("Run the full pass: process inbox → refresh embeds → propose → execute → insights → push")
   .option("-c, --config <path>", "path to config file", "vault-sidekick.config.yaml")
   .option("--dry-run", "print intended actions but do not modify the vault")
-  .action(async (opts: { config: string; dryRun?: boolean }) => {
-    const cfg = loadConfig(opts.config);
-    console.log("[run] not yet implemented");
-    console.log("[run] vault:", cfg.vault.path, "dry-run:", !!opts.dryRun);
-  });
+  .option("--skip-llm", "only run LINK + insights (no LLM-driven PARA/MERGE)")
+  .option("--skip-push", "do not push to origin at the end")
+  .option("--max-para-moves <n>", "cap PARA auto-moves this run", "50")
+  .option("--max-links <n>", "cap LINK auto-adds this run", "50")
+  .option("--max-merge-candidates <n>", "cap MERGE candidates examined", "30")
+  .action(
+    async (opts: {
+      config: string;
+      dryRun?: boolean;
+      skipLlm?: boolean;
+      skipPush?: boolean;
+      maxParaMoves: string;
+      maxLinks: string;
+      maxMergeCandidates: string;
+    }) => {
+      const cfg = loadConfig(opts.config);
+      await runFullPass(cfg, {
+        dryRun: opts.dryRun,
+        skipLlm: opts.skipLlm,
+        skipPush: opts.skipPush,
+        maxParaMoves: parseInt(opts.maxParaMoves, 10),
+        maxLinks: parseInt(opts.maxLinks, 10),
+        maxMergeCandidates: parseInt(opts.maxMergeCandidates, 10),
+      });
+    },
+  );
 
 program
   .command("config")
@@ -55,6 +79,40 @@ program
     const elapsed = Date.now() - start;
     console.log(`scanned ${stats.totalNotes} notes in ${elapsed}ms`);
     console.log(JSON.stringify(stats, null, 2));
+  });
+
+program
+  .command("embed-missing")
+  .description("Embed notes that vault-context hasn't indexed yet (uses its OpenAI key)")
+  .option("-c, --config <path>", "path to config file", "vault-sidekick.config.yaml")
+  .action(async (opts: { config: string }) => {
+    const cfg = loadConfig(opts.config);
+    const index = await scanVault({
+      vaultPath: cfg.vault.path,
+      ignoredFolders: cfg.vault.ignored_folders,
+    });
+    const store = await loadEmbeddings({
+      embeddingsDir: cfg.vault.embeddings_dir!,
+      knownPaths: index.notes.keys(),
+    });
+    console.log(`[embed] ${store.missingPaths.length} notes missing embeddings`);
+    const result = await refreshMissingEmbeddings({
+      vaultPath: cfg.vault.path,
+      embeddingsDir: cfg.vault.embeddings_dir!,
+      missingPaths: store.missingPaths,
+      index,
+    });
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command("ask-claude")
+  .description("Smoke-test the headless Claude wrapper. Sends a tiny prompt and prints JSON.")
+  .action(async () => {
+    const res = await askClaudeJson<{ greeting: string; numbers: number[] }>(
+      'Output {"greeting": "hello vault-sidekick", "numbers": [1,2,3]}.',
+    );
+    console.log(JSON.stringify(res, null, 2));
   });
 
 program
