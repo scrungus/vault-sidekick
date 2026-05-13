@@ -1,0 +1,45 @@
+{
+  "name": "vault-sidekick",
+  "version": "0.1.0",
+  "description": "Semi-autonomous Obsidian vault organizer — nightly cron + manual CLI that PARA-classifies, surfaces missing links, and proposes merges for human review.",
+  "type": "module",
+  "bin": {
+    "vault-sidekick": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/scrungus/vault-sidekick"
+  },
+  "keywords": [
+    "obsidian",
+    "agent",
+    "knowledge-management",
+    "para",
+    "anthropic",
+    "claude"
+  ],
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.95.2",
+    "@orama/orama": "^3.1.18",
+    "commander": "^14.0.3",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.7.0",
+    "esbuild": "^0.28.0",
+    "prettier": "^3.8.3",
+    "typescript": "^6.0.3"
+  }
+}

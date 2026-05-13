@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+*.tsbuildinfo
+
+# Personal config — each user has their own; example committed instead
+vault-sidekick.config.yaml
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/

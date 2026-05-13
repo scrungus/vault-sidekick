@@ -1,0 +1,56 @@
+# vault-sidekick configuration
+# Copy this file to vault-sidekick.config.yaml and edit for your setup.
+
+vault:
+  # Absolute path to your Obsidian vault. ~/ is expanded.
+  path: ~/path/to/your/vault
+
+  # Optional. Defaults to <vault.path>/.obsidian/plugins/vault-context/embeddings
+  # Only set this if you keep vault-context's embeddings somewhere non-standard.
+  # embeddings_dir: ~/somewhere/else
+
+  # Folders inside the vault that vault-sidekick should never touch.
+  # Paths are relative to vault.path.
+  ignored_folders:
+    - .obsidian
+    - .trash
+    - _inbox
+    - assets
+    - smart-chats
+
+git:
+  # When true, vault-sidekick commits each operation inside the vault's git repo.
+  enabled: true
+  remote: origin
+
+inbox:
+  # Where proposals and applied logs live (relative to vault.path).
+  dir: _inbox
+  proposals_file: proposals.md
+  applied_file: applied.md
+
+para:
+  # PARA bucket names. Override if you prefer different terms (e.g. Areas → Domains).
+  buckets:
+    - Projects
+    - Areas
+    - Resources
+    - Archives
+
+insights:
+  # For each note, consider its top-K embedding neighbours when looking for "should connect but don't".
+  top_k: 20
+  # Minimum cosine similarity to be considered a real semantic neighbour.
+  min_similarity: 0.7
+  # Minimum graph distance (BFS hops over wikilinks). Pairs closer than this are ignored.
+  min_graph_distance: 3
+  # Cap how many surprising connections appear in a single daily report.
+  max_per_report: 20
+
+llm:
+  provider: anthropic
+  # claude-sonnet-4-6 is the recommended default. For pure classification you can use
+  # claude-haiku-4-5-20251001 (cheaper). For tougher merge proposals, claude-opus-4-7.
+  model: claude-sonnet-4-6
+  # Name of the env var that holds your API key. Don't put the key in this file.
+  api_key_env: ANTHROPIC_API_KEY
