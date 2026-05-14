@@ -68,6 +68,23 @@ export class Git {
     return (await this.run("rev-parse", "HEAD")).trim();
   }
 
+  /**
+   * Commit ONLY the given paths, ignoring anything else already staged.
+   * This keeps each operation's commit surgical — `git commit` with no
+   * pathspec would otherwise sweep in unrelated staged changes.
+   */
+  async commitPaths(message: string, paths: string[]): Promise<string | null> {
+    if (paths.length === 0) return null;
+    // Stage these paths (picks up new/modified/deleted), then commit with an
+    // explicit pathspec so other staged changes are left untouched.
+    await this.maybeRun("add", "--", ...paths);
+    if (this.opts.dryRun) return "DRY-RUN-SHA";
+    const staged = await this.run("diff", "--cached", "--name-only", "--", ...paths);
+    if (!staged.trim()) return null;
+    await this.maybeRun("commit", "-m", message, "--", ...paths);
+    return (await this.run("rev-parse", "HEAD")).trim();
+  }
+
   async revert(sha: string, message?: string): Promise<string> {
     if (this.opts.dryRun) return "DRY-RUN-SHA";
     if (message) {

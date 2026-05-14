@@ -184,10 +184,10 @@ program
       vaultPath: cfg.vault.path,
       ignoredFolders: cfg.vault.ignored_folders,
     });
-    const registry = buildHubRegistry(index, cfg.harvest.hub_property);
+    const registry = buildHubRegistry(index, cfg.harvest.hub_tag);
     if (registry.size === 0) {
       console.log(
-        `No hub notes found. Add "${cfg.harvest.hub_property}: <genre>" to a note's frontmatter to designate it.`,
+        `No hub notes found. Tag a note "#${cfg.harvest.hub_tag}/<genre>" (e.g. #${cfg.harvest.hub_tag}/dreams) to designate it.`,
       );
       return;
     }

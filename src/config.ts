@@ -66,15 +66,16 @@ const ConfigSchema = z.object({
       fleeting_file: z.string().default("_inbox/fleeting.md"),
       // Daily notes newer than this many days are left alone (still being written).
       cron_buffer_days: z.number().int().nonnegative().default(2),
-      // Frontmatter key a note sets to declare itself a journal-genre hub.
-      hub_property: z.string().default("vsk-hub"),
+      // Tag prefix a note uses to declare itself a journal-genre hub.
+      // A note tagged `#vsk-hub/dreams` becomes the hub for the "dreams" genre.
+      hub_tag: z.string().default("vsk-hub"),
     })
     .default({
       archive_dir: "Archives/daily",
       journal_dir: "Journal",
       fleeting_file: "_inbox/fleeting.md",
       cron_buffer_days: 2,
-      hub_property: "vsk-hub",
+      hub_tag: "vsk-hub",
     }),
 });
 

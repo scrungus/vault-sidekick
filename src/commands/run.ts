@@ -240,7 +240,7 @@ export async function runFullPass(cfg: Config, opts: RunOptions = {}): Promise<v
     if (!embed) {
       console.log("[run] HARVEST skipped — no embedding key configured");
     } else {
-      const hubRegistry = buildHubRegistry(state.index, cfg.harvest.hub_property);
+      const hubRegistry = buildHubRegistry(state.index, cfg.harvest.hub_tag);
       const harvestProposals = await planHarvest(
         {
           cfg,
@@ -276,9 +276,9 @@ export async function runFullPass(cfg: Config, opts: RunOptions = {}): Promise<v
   // written outside any executor. Without this commit they'd never be pushed.
   if (!opts.dryRun) {
     const inboxRel = relative(cfg.vault.path, cfg.inbox.dir);
-    await git.stage([inboxRel]);
-    const housekeepingSha = await git.commit(
+    const housekeepingSha = await git.commitPaths(
       "vault-sidekick: update inbox (proposals, insights, ledger)",
+      [inboxRel],
     );
     if (housekeepingSha) {
       console.log(`[run] committed inbox outputs (${housekeepingSha.slice(0, 7)})`);

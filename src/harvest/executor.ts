@@ -98,9 +98,9 @@ export async function executeHarvest(
   affected.add(action.ledger);
 
   const staged = [...affected];
-  await ctx.git.stage(staged);
-  const sha = await ctx.git.commit(
+  const sha = await ctx.git.commitPaths(
     `${propId}: harvest ${action.daily} (${plan.blocks.length} blocks) → archived`,
+    staged,
   );
   return { commitSha: sha, filesAffected: staged };
 }

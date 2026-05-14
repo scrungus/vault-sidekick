@@ -53,7 +53,9 @@ export async function classifyDailyNote(opts: {
 
   const prompt = `You are processing a daily journal note from an Obsidian vault. The user never re-reads individual daily notes, so the content needs to be surfaced into permanent notes; the daily note itself gets archived afterward.
 
-Segment the note below into coherent blocks — a paragraph, a bullet group, a section under a heading: whatever forms a self-contained unit. Classify each block:
+Segment the note into blocks, where a block is a self-contained unit of thought. **Err strongly toward larger blocks** — only start a new block when the content genuinely shifts topic, type, or intent. Multiple sentences or paragraphs describing the same dream, story, idea, event, or train of thought are ONE block, never several. When unsure whether to split, don't.
+
+Classify each block:
 
 - **extract** — a developed idea or piece of knowledge that deserves its own permanent note
 - **append** — content that belongs inside an existing permanent note on a topic the user likely already has

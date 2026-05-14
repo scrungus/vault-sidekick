@@ -146,7 +146,7 @@ export async function runHarvest(cfg: Config, opts: HarvestOptions = {}): Promis
     embeddingsDir: cfg.vault.embeddings_dir!,
     knownPaths: index.notes.keys(),
   });
-  const hubRegistry = buildHubRegistry(index, cfg.harvest.hub_property);
+  const hubRegistry = buildHubRegistry(index, cfg.harvest.hub_tag);
   const proposalsFile = join(cfg.inbox.dir, cfg.inbox.proposals_file);
   const existingProposals = await readProposals(proposalsFile);
 

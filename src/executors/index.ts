@@ -87,9 +87,9 @@ export async function executeLinkAdd(
     return { commitSha: null, filesAffected: [], notes: "both links already present, no-op" };
   }
 
-  await ctx.git.stage(filesAffected);
-  const sha = await ctx.git.commit(
+  const sha = await ctx.git.commitPaths(
     `${propId}: link [[${sourceStem}]] ↔ [[${targetStem}]]`,
+    filesAffected,
   );
   return { commitSha: sha, filesAffected };
 }
@@ -120,12 +120,12 @@ export async function executeMove(
   });
 
   const stagePaths = [action.from, action.to, ...rewrite.filesModified];
-  await ctx.git.stage(stagePaths);
-  const sha = await ctx.git.commit(
+  const sha = await ctx.git.commitPaths(
     `${propId}: move ${action.from} → ${action.to}` +
       (rewrite.filesModified.length
         ? ` (+${rewrite.filesModified.length} link updates)`
         : ""),
+    stagePaths,
   );
   return { commitSha: sha, filesAffected: stagePaths };
 }
@@ -165,12 +165,12 @@ export async function executeMerge(
   });
 
   const stagePaths = [action.from, action.into, ...rewrite.filesModified];
-  await ctx.git.stage(stagePaths);
-  const sha = await ctx.git.commit(
+  const sha = await ctx.git.commitPaths(
     `${propId}: merge ${action.from} → ${action.into}` +
       (rewrite.filesModified.length
         ? ` (+${rewrite.filesModified.length} link updates)`
         : ""),
+    stagePaths,
   );
   return { commitSha: sha, filesAffected: stagePaths };
 }
