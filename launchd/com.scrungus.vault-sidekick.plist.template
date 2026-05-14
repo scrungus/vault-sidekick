@@ -9,7 +9,9 @@
     <array>
         <string>{{NODE_BIN}}</string>
         <string>{{INSTALL_DIR}}/dist/cli.js</string>
-        <string>insights</string>
+        <string>run</string>
+        <string>--max-para-moves</string>
+        <string>0</string>
     </array>
 
     <key>WorkingDirectory</key>

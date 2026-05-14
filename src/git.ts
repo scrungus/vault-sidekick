@@ -87,11 +87,12 @@ export class Git {
     return (await this.run("status", "--porcelain")).trim().length > 0;
   }
 
-  /** Pushes a branch (and optionally tags) to a remote. */
+  /** Pushes a branch (and optionally tags) to a remote, setting upstream tracking. */
   async push(opts: { remote?: string; branch?: string; tags?: boolean } = {}): Promise<void> {
     const remote = opts.remote ?? "origin";
     const branch = opts.branch ?? "main";
-    await this.maybeRun("push", remote, branch);
+    // -u sets/refreshes upstream tracking so a bare `git push` works afterwards.
+    await this.maybeRun("push", "-u", remote, branch);
     if (opts.tags) {
       await this.maybeRun("push", remote, "--tags");
     }
