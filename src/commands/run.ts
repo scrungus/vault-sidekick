@@ -235,7 +235,9 @@ export async function runFullPass(cfg: Config, opts: RunOptions = {}): Promise<v
   }
 
   // ---- Step 5b: plan daily-note harvests (proposal-based, never auto-exec) ----
-  if (!opts.skipLlm && (opts.maxHarvest ?? 0) > 0) {
+  // Gated only by --max-harvest, independent of --skip-llm: harvesting and the
+  // PARA/MERGE generators are separately controllable.
+  if ((opts.maxHarvest ?? 0) > 0) {
     const embed = await createEmbedder(cfg.vault.path);
     if (!embed) {
       console.log("[run] HARVEST skipped — no embedding key configured");

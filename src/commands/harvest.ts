@@ -70,11 +70,20 @@ export async function planHarvest(
   const proposalsFile = join(cfg.inbox.dir, cfg.inbox.proposals_file);
   const live = liveHarvestProposals(ctx.existingProposals);
 
+  const toPlan: Array<{ daily: string; content: string; contentHash: string }> = [];
+  const supersede: string[] = [];
+
+  // Orphan cleanup: a pending proposal whose daily was deleted is dead — reject it.
+  for (const [daily, prop] of live) {
+    if (!index.notes.has(daily)) {
+      supersede.push(prop.id);
+      live.delete(daily);
+    }
+  }
+
   // Selection pass: choose which dailies to plan. A daily that already has a
   // pending proposal is re-planned only if its content hash has changed since
   // that proposal was made (i.e. the note was edited).
-  const toPlan: Array<{ daily: string; content: string; contentHash: string }> = [];
-  const supersede: string[] = [];
   for (const dailyRel of harvestableDailies(cfg, index)) {
     if (toPlan.length >= maxDailies) break;
     const note = index.notes.get(dailyRel);
@@ -90,12 +99,15 @@ export async function planHarvest(
     }
     toPlan.push({ daily: dailyRel, content, contentHash });
   }
-  if (toPlan.length === 0) return [];
 
+  // Reject superseded proposals (deleted dailies + edited-since-proposed) even
+  // if there's nothing new to plan.
   for (const id of supersede) {
     await updateProposalState(proposalsFile, id, "rejected");
-    console.log(`  superseded ${id} (daily changed since it was proposed)`);
+    console.log(`  superseded ${id} (daily deleted or changed since proposed)`);
   }
+
+  if (toPlan.length === 0) return [];
 
   const ledgerAbs = join(cfg.inbox.dir, "harvest-ledger.md");
   const ledgerRel = relative(cfg.vault.path, ledgerAbs);
