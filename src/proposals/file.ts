@@ -76,7 +76,7 @@ function splitSections(text: string): string[] {
 }
 
 function parseSection(section: string): Proposal | null {
-  const header = section.match(/^###\s+(PROP-\S+)\s+·\s+(MERGE|LINK|PARA)\s*$/m);
+  const header = section.match(/^###\s+(PROP-\S+)\s+·\s+(MERGE|LINK|PARA|HARVEST)\s*$/m);
   if (!header) return null;
   const id = header[1]!;
   const kind = header[2] as ProposalKind;
@@ -201,6 +201,12 @@ export async function updateProposalState(
     } else {
       updated = section + "\n" + newStateLine + "\n";
     }
+  }
+  // Once applied, the proposal needs a "revert this" checkbox so it can be
+  // unwound later. Proposals that started as `proposed` (MERGE, HARVEST) don't
+  // get one at render time — add it now.
+  if (newState === "applied" && !/^-\s*\[.\]\s+revert this\b/im.test(updated)) {
+    updated = updated.replace(/\s*$/, "") + "\n\n- [ ] revert this\n";
   }
   await writeFile(filePath, text.slice(0, sectionStart) + updated + text.slice(sectionEnd), "utf-8");
 }

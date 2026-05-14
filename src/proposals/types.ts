@@ -1,4 +1,4 @@
-export type ProposalKind = "MERGE" | "LINK" | "PARA";
+export type ProposalKind = "MERGE" | "LINK" | "PARA" | "HARVEST";
 export type ProposalState = "proposed" | "applied" | "rejected" | "reverted";
 export type Confidence = "EXTRACTED" | "INFERRED" | "AMBIGUOUS";
 
@@ -22,7 +22,19 @@ export interface MoveAction {
   to: string;
 }
 
-export type ProposalAction = MergeAction | LinkAddAction | MoveAction;
+export interface HarvestAction {
+  op: "harvest";
+  /** Daily note being harvested (relPath). */
+  daily: string;
+  /** Where the daily note moves once harvested. */
+  archive_to: string;
+  /** Vault-relative path to the sidecar JSON plan (full per-block detail). */
+  plan: string;
+  /** Vault-relative path to the harvest ledger. */
+  ledger: string;
+}
+
+export type ProposalAction = MergeAction | LinkAddAction | MoveAction | HarvestAction;
 
 export interface Proposal {
   id: string;

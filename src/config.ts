@@ -58,6 +58,24 @@ const ConfigSchema = z.object({
       model: "claude-sonnet-4-6",
       api_key_env: "ANTHROPIC_API_KEY",
     }),
+  harvest: z
+    .object({
+      // All paths below are relative to vault.path.
+      archive_dir: z.string().default("Archives/daily"),
+      journal_dir: z.string().default("Journal"),
+      fleeting_file: z.string().default("_inbox/fleeting.md"),
+      // Daily notes newer than this many days are left alone (still being written).
+      cron_buffer_days: z.number().int().nonnegative().default(2),
+      // Frontmatter key a note sets to declare itself a journal-genre hub.
+      hub_property: z.string().default("vsk-hub"),
+    })
+    .default({
+      archive_dir: "Archives/daily",
+      journal_dir: "Journal",
+      fleeting_file: "_inbox/fleeting.md",
+      cron_buffer_days: 2,
+      hub_property: "vsk-hub",
+    }),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

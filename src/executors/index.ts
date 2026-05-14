@@ -1,7 +1,5 @@
 import { readFile, writeFile, unlink, mkdir, rename, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { Git } from "../git.js";
-import type { NoteIndex } from "../vault/scanner.js";
 import { rewriteLinks } from "../vault/rewriter.js";
 import type {
   LinkAddAction,
@@ -9,19 +7,10 @@ import type {
   MoveAction,
   ProposalAction,
 } from "../proposals/types.js";
+import type { ExecutorContext, ExecutorResult } from "./types.js";
+import { executeHarvest } from "../harvest/executor.js";
 
-export interface ExecutorContext {
-  vaultPath: string;
-  index: NoteIndex;
-  git: Git;
-}
-
-export interface ExecutorResult {
-  /** Newly created commit SHA, or null if nothing changed (idempotent no-op). */
-  commitSha: string | null;
-  filesAffected: string[];
-  notes?: string;
-}
+export type { ExecutorContext, ExecutorResult } from "./types.js";
 
 const RELATED_HEADING = "## Related";
 
@@ -208,6 +197,8 @@ export async function executeAction(
       return executeMove(action, ctx, propId);
     case "merge":
       return executeMerge(action, ctx, propId);
+    case "harvest":
+      return executeHarvest(action, ctx, propId);
     default: {
       const _exhaustive: never = action;
       throw new Error(`unknown action op: ${JSON.stringify(_exhaustive)}`);

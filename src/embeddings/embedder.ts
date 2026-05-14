@@ -151,6 +151,19 @@ export interface EmbedResult {
   skippedPaths?: Array<{ path: string; reason: string }>;
 }
 
+/**
+ * Returns an embed function bound to vault-context's configured credentials,
+ * or null if no key is available. Used for ad-hoc embedding (e.g. harvesting
+ * individual daily-note blocks for candidate-note search).
+ */
+export async function createEmbedder(
+  vaultPath: string,
+): Promise<((texts: string[]) => Promise<number[][]>) | null> {
+  const creds = await readVaultContextCredentials(vaultPath);
+  if (!creds) return null;
+  return (texts: string[]) => embedBatch(creds, texts);
+}
+
 export async function refreshMissingEmbeddings(opts: {
   vaultPath: string;
   embeddingsDir: string;

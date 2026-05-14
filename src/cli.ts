@@ -5,11 +5,13 @@ import { loadEmbeddings } from "./embeddings/loader.js";
 import { refreshMissingEmbeddings } from "./embeddings/embedder.js";
 import { runInsights } from "./commands/insights.js";
 import { runFullPass } from "./commands/run.js";
+import { runHarvest } from "./commands/harvest.js";
 import { askClaudeJson } from "./llm/headless.js";
 import { Git } from "./git.js";
 import { readProposals } from "./proposals/file.js";
 import { executeLinkAdd } from "./executors/index.js";
 import { join } from "node:path";
+import { buildHubRegistry } from "./harvest/hubs.js";
 
 const program = new Command();
 
@@ -37,6 +39,7 @@ program
   .option("--max-para-moves <n>", "cap PARA auto-moves this run", "50")
   .option("--max-links <n>", "cap LINK auto-adds this run", "50")
   .option("--max-merge-candidates <n>", "cap MERGE candidates examined", "30")
+  .option("--max-harvest <n>", "cap daily notes planned for harvest this run", "0")
   .action(
     async (opts: {
       config: string;
@@ -46,6 +49,7 @@ program
       maxParaMoves: string;
       maxLinks: string;
       maxMergeCandidates: string;
+      maxHarvest: string;
     }) => {
       const cfg = loadConfig(opts.config);
       await runFullPass(cfg, {
@@ -55,6 +59,7 @@ program
         maxParaMoves: parseInt(opts.maxParaMoves, 10),
         maxLinks: parseInt(opts.maxLinks, 10),
         maxMergeCandidates: parseInt(opts.maxMergeCandidates, 10),
+        maxHarvest: parseInt(opts.maxHarvest, 10),
       });
     },
   );
@@ -152,6 +157,43 @@ program
           console.warn(`[repair-links] push failed: ${(err as Error).message}`);
         }
       }
+    }
+  });
+
+program
+  .command("harvest")
+  .description("Plan daily-note harvests — segment, classify, write HARVEST proposals for review")
+  .option("-c, --config <path>", "path to config file", "vault-sidekick.config.yaml")
+  .option("--max-dailies <n>", "cap how many daily notes to plan this run")
+  .option("--dry-run", "plan but do not write proposals or sidecar files")
+  .action(async (opts: { config: string; maxDailies?: string; dryRun?: boolean }) => {
+    const cfg = loadConfig(opts.config);
+    await runHarvest(cfg, {
+      maxDailies: opts.maxDailies ? parseInt(opts.maxDailies, 10) : undefined,
+      dryRun: opts.dryRun,
+    });
+  });
+
+program
+  .command("hubs")
+  .description("List notes that declare themselves journal-genre hubs (vsk-hub frontmatter)")
+  .option("-c, --config <path>", "path to config file", "vault-sidekick.config.yaml")
+  .action(async (opts: { config: string }) => {
+    const cfg = loadConfig(opts.config);
+    const index = await scanVault({
+      vaultPath: cfg.vault.path,
+      ignoredFolders: cfg.vault.ignored_folders,
+    });
+    const registry = buildHubRegistry(index, cfg.harvest.hub_property);
+    if (registry.size === 0) {
+      console.log(
+        `No hub notes found. Add "${cfg.harvest.hub_property}: <genre>" to a note's frontmatter to designate it.`,
+      );
+      return;
+    }
+    console.log(`${registry.size} hub(s) found:`);
+    for (const [genre, path] of registry) {
+      console.log(`  ${genre} → ${path}`);
     }
   });
 

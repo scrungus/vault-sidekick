@@ -26,6 +26,9 @@ import {
   generateParaProposals,
   type ProposedAction,
 } from "../generators/index.js";
+import { createEmbedder } from "../embeddings/embedder.js";
+import { buildHubRegistry } from "../harvest/hubs.js";
+import { planHarvest } from "./harvest.js";
 import { runInsights } from "./insights.js";
 
 export interface RunOptions {
@@ -38,6 +41,8 @@ export interface RunOptions {
   maxLinks?: number;
   /** Cap MERGE candidates examined by LLM. Default: 30. */
   maxMergeCandidates?: number;
+  /** Cap daily notes planned for harvest per run. Default: 0 (off). */
+  maxHarvest?: number;
 }
 
 interface VaultState {
@@ -226,6 +231,32 @@ export async function runFullPass(cfg: Config, opts: RunOptions = {}): Promise<v
         action: p.action,
         initialState: "proposed",
       });
+    }
+  }
+
+  // ---- Step 5b: plan daily-note harvests (proposal-based, never auto-exec) ----
+  if (!opts.skipLlm && (opts.maxHarvest ?? 0) > 0) {
+    const embed = await createEmbedder(cfg.vault.path);
+    if (!embed) {
+      console.log("[run] HARVEST skipped — no embedding key configured");
+    } else {
+      const hubRegistry = buildHubRegistry(state.index, cfg.harvest.hub_property);
+      const harvestProposals = await planHarvest(
+        {
+          cfg,
+          index: state.index,
+          store: state.store,
+          hubRegistry,
+          embed,
+          existingProposals: [...existing, ...written].map((p) => ({
+            id: p.id,
+            kind: p.kind,
+          })),
+        },
+        opts.maxHarvest!,
+      );
+      written.push(...harvestProposals);
+      console.log(`[run] HARVEST: ${harvestProposals.length} proposed`);
     }
   }
 
