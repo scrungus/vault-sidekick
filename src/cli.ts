@@ -6,6 +6,10 @@ import { refreshMissingEmbeddings } from "./embeddings/embedder.js";
 import { runInsights } from "./commands/insights.js";
 import { runFullPass } from "./commands/run.js";
 import { askClaudeJson } from "./llm/headless.js";
+import { Git } from "./git.js";
+import { readProposals } from "./proposals/file.js";
+import { executeLinkAdd } from "./executors/index.js";
+import { join } from "node:path";
 
 const program = new Command();
 
@@ -103,6 +107,52 @@ program
       index,
     });
     console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command("repair-links")
+  .description("Make every applied LINK proposal bidirectional (fills in missing reverse links)")
+  .option("-c, --config <path>", "path to config file", "vault-sidekick.config.yaml")
+  .option("--skip-push", "do not push to origin")
+  .action(async (opts: { config: string; skipPush?: boolean }) => {
+    const cfg = loadConfig(opts.config);
+    const index = await scanVault({
+      vaultPath: cfg.vault.path,
+      ignoredFolders: cfg.vault.ignored_folders,
+    });
+    const git = new Git({
+      cwd: cfg.vault.path,
+      userEmail: process.env.GIT_AUTHOR_EMAIL ?? "vault-sidekick@scrungus",
+      userName: process.env.GIT_AUTHOR_NAME ?? "vault-sidekick",
+    });
+    const ctx = { vaultPath: cfg.vault.path, index, git };
+    const proposalsFile = join(cfg.inbox.dir, cfg.inbox.proposals_file);
+    const proposals = await readProposals(proposalsFile);
+    const links = proposals.filter((p) => p.kind === "LINK" && p.state === "applied");
+    console.log(`[repair-links] checking ${links.length} applied LINK proposals`);
+
+    let repaired = 0;
+    for (const p of links) {
+      if (p.action.op !== "link_add") continue;
+      const result = await executeLinkAdd(p.action, ctx, `${p.id}-repair`);
+      if (result.commitSha) {
+        repaired++;
+        console.log(`  ${p.id}: added reverse link (${result.filesAffected.join(", ")})`);
+      }
+    }
+    console.log(`[repair-links] ${repaired} links made bidirectional`);
+
+    if (repaired > 0 && !opts.skipPush && cfg.git.enabled) {
+      const ahead = await git.commitsAheadOf(cfg.git.remote, "main");
+      if (ahead.length > 0) {
+        try {
+          await git.push({ remote: cfg.git.remote, branch: "main" });
+          console.log(`[repair-links] pushed ${ahead.length} commits`);
+        } catch (err) {
+          console.warn(`[repair-links] push failed: ${(err as Error).message}`);
+        }
+      }
+    }
   });
 
 program

@@ -85,7 +85,7 @@ export function generateLinkProposals(pairs: InsightPair[]): ProposedAction[] {
     };
     out.push({
       kind: "LINK",
-      title: `[[${stemOf(p.sourcePath)}]] → [[${stemOf(p.neighbourPath)}]]`,
+      title: `[[${stemOf(p.sourcePath)}]] ↔ [[${stemOf(p.neighbourPath)}]]`,
       reason: `sim ${p.similarity.toFixed(3)} · graph ${p.graphDistance === Infinity ? "no path" : `${p.graphDistance} hops`}`,
       confidence: p.confidence,
       action,

@@ -56,6 +56,23 @@ function appendToRelated(content: string, linkLine: string): string {
   return `${content}${sep}${RELATED_HEADING}\n\n${linkLine}\n`;
 }
 
+function hasLinkTo(content: string, stem: string): boolean {
+  return new RegExp(`\\[\\[${escapeRegExp(stem)}(?:[|#^][^\\]]*)?\\]\\]`, "i").test(content);
+}
+
+/** Adds `[[stem]]` under "## Related" if not already linked. Returns true if it modified the file. */
+async function addLinkOneWay(absPath: string, stem: string): Promise<boolean> {
+  const content = await readFile(absPath, "utf-8");
+  if (hasLinkTo(content, stem)) return false;
+  await writeFile(absPath, appendToRelated(content, `- [[${stem}]]`), "utf-8");
+  return true;
+}
+
+/**
+ * Link two notes to each other. Adds `[[target]]` under "## Related" in the
+ * source note AND `[[source]]` under "## Related" in the target note. Each
+ * direction is idempotent — re-running only fills in whichever side is missing.
+ */
 export async function executeLinkAdd(
   action: LinkAddAction,
   ctx: ExecutorContext,
@@ -66,21 +83,26 @@ export async function executeLinkAdd(
   if (!sourceNote) throw new Error(`link-add source not found: ${action.in}`);
   if (!targetNote) throw new Error(`link-add target not found: ${action.target}`);
 
+  const sourceStem = stemOf(sourceNote.relPath);
   const targetStem = stemOf(targetNote.relPath);
-  const content = await readFile(sourceNote.absPath, "utf-8");
 
-  const existing = new RegExp(`\\[\\[${escapeRegExp(targetStem)}(?:[|#^][^\\]]*)?\\]\\]`, "i");
-  if (existing.test(content)) {
-    return { commitSha: null, filesAffected: [], notes: "link already present, no-op" };
+  const filesAffected: string[] = [];
+  if (await addLinkOneWay(sourceNote.absPath, targetStem)) {
+    filesAffected.push(sourceNote.relPath);
+  }
+  if (await addLinkOneWay(targetNote.absPath, sourceStem)) {
+    filesAffected.push(targetNote.relPath);
   }
 
-  const updated = appendToRelated(content, `- [[${targetStem}]]`);
-  await writeFile(sourceNote.absPath, updated, "utf-8");
-  await ctx.git.stage([sourceNote.relPath]);
+  if (filesAffected.length === 0) {
+    return { commitSha: null, filesAffected: [], notes: "both links already present, no-op" };
+  }
+
+  await ctx.git.stage(filesAffected);
   const sha = await ctx.git.commit(
-    `${propId}: add link [[${targetStem}]] to ${sourceNote.relPath}`,
+    `${propId}: link [[${sourceStem}]] ↔ [[${targetStem}]]`,
   );
-  return { commitSha: sha, filesAffected: [sourceNote.relPath] };
+  return { commitSha: sha, filesAffected };
 }
 
 export async function executeMove(
