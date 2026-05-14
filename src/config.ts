@@ -26,9 +26,11 @@ const ConfigSchema = z.object({
     .object({
       dir: z.string().default("_inbox"),
       proposals_file: z.string().default("proposals.md"),
-      applied_file: z.string().default("applied.md"),
+      // Actioned proposals (applied/rejected/reverted) move here so the live
+      // proposals file stays focused on what still needs review.
+      archive_file: z.string().default("proposals-archive.md"),
     })
-    .default({ dir: "_inbox", proposals_file: "proposals.md", applied_file: "applied.md" }),
+    .default({ dir: "_inbox", proposals_file: "proposals.md", archive_file: "proposals-archive.md" }),
   para: z
     .object({
       buckets: z.array(z.string()).default(["Projects", "Areas", "Resources", "Archives"]),

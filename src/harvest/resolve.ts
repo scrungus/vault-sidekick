@@ -125,13 +125,18 @@ export async function resolveBlocks(opts: ResolveOptions): Promise<ResolvedBlock
   }
 
   // Pass 3: one batched Claude call makes the final placement call for each block.
+  const hubList = [...opts.hubRegistry.entries()].map(([topic, path]) => ({ topic, path }));
+
   const prompt = `For each block, decide where it belongs. A classifier already gave a "suggested" disposition — treat it as a hint, but you can see the candidate notes it couldn't, so you make the final call.
 
-- **append** — the block extends one of its candidate notes. Pick the target path.
+- **append** — the block extends one of its candidate notes, OR clearly belongs to one of the topic hubs below. Pick the target path.
 - **extract** — the block is a developed idea that deserves its own note. Give a title.
-- **fleeting** — the block is too thin to stand alone AND none of the candidates is a genuine home. It goes to a shared review collector.
+- **fleeting** — the block is too thin to stand alone AND has no hub or candidate home. It goes to a shared review collector.
 
-Prefer **append** whenever there's a real topical match — even a short one-line pointer should append to an existing resource/topic note rather than languish as fleeting. Only choose **fleeting** when there's genuinely no good home. Prefer **extract** over a weak append — a slightly redundant new note beats content buried in the wrong place.
+User-designated topic hubs — curated collection points the user explicitly tagged. If a block clearly belongs to a hub's topic, APPEND it to that hub. This takes priority over embedding-matched candidates: a maths link belongs in the maths hub, not in some note that merely mentions maths.
+${hubList.length > 0 ? JSON.stringify(hubList, null, 2) : "(none)"}
+
+Prefer **append** whenever there's a real topical match — even a short one-line pointer should append to a hub or resource note rather than languish as fleeting. Only choose **fleeting** when there's genuinely no good home. Prefer **extract** over a weak append — a slightly redundant new note beats content buried in the wrong place.
 
 Blocks:
 ${JSON.stringify(
@@ -145,7 +150,7 @@ ${JSON.stringify(
   2,
 )}
 
-For each: id, action ("append"|"extract"|"fleeting"), target (candidate path — required if append), new_title (proposed note title — required if extract), reason (≤ 15 words).
+For each: id, action ("append"|"extract"|"fleeting"), target (a candidate path OR a hub path — required if append), new_title (proposed note title — required if extract), reason (≤ 15 words).
 
 Output shape: {"decisions": [{"id": ..., "action": ..., "target": ..., "new_title": ..., "reason": ...}]}`;
 

@@ -211,6 +211,57 @@ export async function updateProposalState(
   await writeFile(filePath, text.slice(0, sectionStart) + updated + text.slice(sectionEnd), "utf-8");
 }
 
+const ARCHIVE_HEADER =
+  "# Vault Sidekick Proposals — Archive\n\n" +
+  "Actioned proposals (applied / rejected / reverted) are moved here from " +
+  "proposals.md so the live file stays focused on what still needs review. " +
+  "This is the historical record — append-only.\n\n" +
+  "---\n\n";
+
+/**
+ * Move every actioned proposal (state ≠ proposed) out of the live proposals
+ * file and into the archive file. Keeps proposals.md focused on pending work.
+ */
+export async function archiveActionedProposals(
+  proposalsFile: string,
+  archiveFile: string,
+): Promise<{ archived: number; kept: number }> {
+  if (!existsSync(proposalsFile)) return { archived: 0, kept: 0 };
+  const text = await readFile(proposalsFile, "utf-8");
+  const firstProp = text.search(/^### PROP-/m);
+  if (firstProp < 0) return { archived: 0, kept: 0 };
+
+  const header = text.slice(0, firstProp);
+  const body = text.slice(firstProp);
+  const kept: string[] = [];
+  const archived: string[] = [];
+  for (const raw of body.split(/\n---\s*\n/)) {
+    const sec = raw.trim();
+    if (!/^###\s+PROP-/m.test(sec)) continue;
+    const parsed = parseSection(sec);
+    if (parsed && parsed.state === "proposed") kept.push(sec);
+    else archived.push(sec);
+  }
+
+  if (archived.length === 0) return { archived: 0, kept: kept.length };
+
+  const rebuilt =
+    kept.length > 0 ? header + kept.join("\n\n---\n\n") + "\n" : header.replace(/\s*$/, "") + "\n";
+  await writeFile(proposalsFile, rebuilt, "utf-8");
+
+  let existingArchive: string;
+  if (existsSync(archiveFile)) {
+    existingArchive = await readFile(archiveFile, "utf-8");
+    if (!existingArchive.endsWith("\n")) existingArchive += "\n";
+    if (!existingArchive.replace(/\s*$/, "").endsWith("---")) existingArchive += "\n---\n\n";
+  } else {
+    existingArchive = ARCHIVE_HEADER;
+  }
+  await writeFile(archiveFile, existingArchive + archived.join("\n\n---\n\n") + "\n", "utf-8");
+
+  return { archived: archived.length, kept: kept.length };
+}
+
 /**
  * Allocate the next sequential ID for a given kind + date.
  * Pass in existing proposals so collisions are avoided.

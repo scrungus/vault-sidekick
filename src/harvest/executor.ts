@@ -25,13 +25,33 @@ async function appendUnderHeading(
   await writeFile(absPath, `${existing}${sep}${heading}\n\n${body.trim()}\n`, "utf-8");
 }
 
-/** Find a non-colliding path for an extracted note. */
-function uniqueExtractPath(vaultPath: string, relPath: string): string {
-  if (!existsSync(join(vaultPath, relPath))) return relPath;
+/** A note that's missing, empty, or frontmatter-only — safe to write an extract into. */
+async function isWritableTarget(absPath: string): Promise<boolean> {
+  if (!existsSync(absPath)) return true;
+  try {
+    let body = await readFile(absPath, "utf-8");
+    if (body.startsWith("---")) {
+      const end = body.indexOf("\n---", 3);
+      if (end >= 0) body = body.slice(end + 4);
+    }
+    return body.trim().length === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve where an extracted note should be written. If the target name is
+ * free OR points at an empty placeholder note (Obsidian auto-creates these
+ * when you click a not-yet-existing wikilink), use it. Only disambiguate with
+ * a numeric suffix when a real, non-empty note already owns the name.
+ */
+async function resolveExtractPath(vaultPath: string, relPath: string): Promise<string> {
+  if (await isWritableTarget(join(vaultPath, relPath))) return relPath;
   const base = relPath.replace(/\.md$/, "");
   for (let i = 2; i < 100; i++) {
     const candidate = `${base} (${i}).md`;
-    if (!existsSync(join(vaultPath, candidate))) return candidate;
+    if (await isWritableTarget(join(vaultPath, candidate))) return candidate;
   }
   return `${base} (${Date.now()}).md`;
 }
@@ -51,7 +71,7 @@ export async function executeHarvest(
   for (const block of plan.blocks) {
     if (block.disposition === "extract") {
       if (!block.destination) continue;
-      const rel = uniqueExtractPath(ctx.vaultPath, block.destination);
+      const rel = await resolveExtractPath(ctx.vaultPath, block.destination);
       const abs = join(ctx.vaultPath, rel);
       await mkdir(dirname(abs), { recursive: true });
       const frontmatter = `---\nsource: "[[${dailyStem}]]"\nharvested: ${now.slice(0, 10)}\n---\n\n`;

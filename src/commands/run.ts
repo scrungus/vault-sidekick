@@ -12,6 +12,7 @@ import { Git } from "../git.js";
 import { processInbox } from "../proposals/scanner.js";
 import {
   appendProposals,
+  archiveActionedProposals,
   nextProposalId,
   readProposals,
 } from "../proposals/file.js";
@@ -267,6 +268,17 @@ export async function runFullPass(cfg: Config, opts: RunOptions = {}): Promise<v
     console.log(`[run] wrote ${written.length} proposals to ${proposalsFile}`);
   } else if (opts.dryRun) {
     console.log(`[run] --dry-run: would have written ${written.length} proposals`);
+  }
+
+  // ---- Step 5c: archive actioned proposals ----
+  // Move applied/rejected/reverted proposals out of the live file so it stays
+  // focused on what still needs review.
+  if (!opts.dryRun) {
+    const archiveFile = join(cfg.inbox.dir, cfg.inbox.archive_file);
+    const { archived } = await archiveActionedProposals(proposalsFile, archiveFile);
+    if (archived > 0) {
+      console.log(`[run] archived ${archived} actioned proposals → ${cfg.inbox.archive_file}`);
+    }
   }
 
   // ---- Step 6: daily insights report ----
