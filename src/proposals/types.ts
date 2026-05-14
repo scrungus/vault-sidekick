@@ -32,6 +32,9 @@ export interface HarvestAction {
   plan: string;
   /** Vault-relative path to the harvest ledger. */
   ledger: string;
+  /** Content hash of the daily at plan time. A re-run re-plans the daily only
+   *  if its current hash differs (i.e. the note was edited). */
+  content_hash: string;
 }
 
 export type ProposalAction = MergeAction | LinkAddAction | MoveAction | HarvestAction;

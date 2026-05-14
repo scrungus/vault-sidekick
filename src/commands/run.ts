@@ -241,6 +241,9 @@ export async function runFullPass(cfg: Config, opts: RunOptions = {}): Promise<v
       console.log("[run] HARVEST skipped — no embedding key configured");
     } else {
       const hubRegistry = buildHubRegistry(state.index, cfg.harvest.hub_tag);
+      // `existing` holds the real (parsed) proposals — planHarvest needs their
+      // full shape for content-hash comparison. HARVEST IDs never collide with
+      // LINK/PARA/MERGE IDs, so the freshly-`written` ones aren't needed here.
       const harvestProposals = await planHarvest(
         {
           cfg,
@@ -248,10 +251,7 @@ export async function runFullPass(cfg: Config, opts: RunOptions = {}): Promise<v
           store: state.store,
           hubRegistry,
           embed,
-          existingProposals: [...existing, ...written].map((p) => ({
-            id: p.id,
-            kind: p.kind,
-          })),
+          existingProposals: existing,
         },
         opts.maxHarvest!,
       );

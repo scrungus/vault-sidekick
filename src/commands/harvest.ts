@@ -5,12 +5,17 @@ import { scanVault, type NoteIndex } from "../vault/scanner.js";
 import { loadEmbeddings, type EmbeddingStore } from "../embeddings/loader.js";
 import { createEmbedder } from "../embeddings/embedder.js";
 import { buildHubRegistry, type HubRegistry } from "../harvest/hubs.js";
-import { loadSeenHashes, toLink } from "../harvest/ledger.js";
+import { hashBlock, loadSeenHashes, toLink } from "../harvest/ledger.js";
 import { classifyDailyNote } from "../harvest/classify.js";
 import { resolveBlocks } from "../harvest/resolve.js";
 import { writeHarvestPlan, summarizePlan, type HarvestPlan } from "../harvest/plan.js";
-import { appendProposals, nextProposalId, readProposals } from "../proposals/file.js";
-import type { NewProposal } from "../proposals/types.js";
+import {
+  appendProposals,
+  nextProposalId,
+  readProposals,
+  updateProposalState,
+} from "../proposals/file.js";
+import type { NewProposal, Proposal } from "../proposals/types.js";
 
 const DAILY_RE = /^\d{4}-\d{2}-\d{2}\.md$/;
 
@@ -20,7 +25,20 @@ export interface HarvestContext {
   store: EmbeddingStore;
   hubRegistry: HubRegistry;
   embed: (texts: string[]) => Promise<number[][]>;
-  existingProposals: Array<{ id: string; kind: NewProposal["kind"] }>;
+  /** All existing proposals — used for ID allocation and for content-hash
+   *  comparison so unchanged dailies aren't re-planned. */
+  existingProposals: Proposal[];
+}
+
+/** Map of daily path → its current pending (proposed) HARVEST proposal. */
+function liveHarvestProposals(proposals: Proposal[]): Map<string, Proposal> {
+  const live = new Map<string, Proposal>();
+  for (const p of proposals) {
+    if (p.kind === "HARVEST" && p.action.op === "harvest" && p.state === "proposed") {
+      live.set(p.action.daily, p);
+    }
+  }
+  return live;
 }
 
 /** Daily notes eligible for harvest: YYYY-MM-DD.md, not archived, older than the cron buffer. */
@@ -49,19 +67,42 @@ export async function planHarvest(
   maxDailies: number,
 ): Promise<NewProposal[]> {
   const { cfg, index } = ctx;
-  const dailies = harvestableDailies(cfg, index).slice(0, maxDailies);
-  if (dailies.length === 0) return [];
+  const proposalsFile = join(cfg.inbox.dir, cfg.inbox.proposals_file);
+  const live = liveHarvestProposals(ctx.existingProposals);
+
+  // Selection pass: choose which dailies to plan. A daily that already has a
+  // pending proposal is re-planned only if its content hash has changed since
+  // that proposal was made (i.e. the note was edited).
+  const toPlan: Array<{ daily: string; content: string; contentHash: string }> = [];
+  const supersede: string[] = [];
+  for (const dailyRel of harvestableDailies(cfg, index)) {
+    if (toPlan.length >= maxDailies) break;
+    const note = index.notes.get(dailyRel);
+    if (!note) continue;
+    const content = await readFile(note.absPath, "utf-8");
+    const contentHash = hashBlock(content);
+    const existing = live.get(dailyRel);
+    if (existing) {
+      const priorHash =
+        existing.action.op === "harvest" ? existing.action.content_hash : undefined;
+      if (priorHash === contentHash) continue; // unchanged — keep existing proposal
+      supersede.push(existing.id); // daily edited since proposed — replace it
+    }
+    toPlan.push({ daily: dailyRel, content, contentHash });
+  }
+  if (toPlan.length === 0) return [];
+
+  for (const id of supersede) {
+    await updateProposalState(proposalsFile, id, "rejected");
+    console.log(`  superseded ${id} (daily changed since it was proposed)`);
+  }
 
   const ledgerAbs = join(cfg.inbox.dir, "harvest-ledger.md");
   const ledgerRel = relative(cfg.vault.path, ledgerAbs);
   const seenHashes = await loadSeenHashes(ledgerAbs);
 
   const proposals: NewProposal[] = [];
-  for (const dailyRel of dailies) {
-    const note = index.notes.get(dailyRel);
-    if (!note) continue;
-    const content = await readFile(note.absPath, "utf-8");
-
+  for (const { daily: dailyRel, content, contentHash } of toPlan) {
     const classification = await classifyDailyNote({
       dailyPath: dailyRel,
       content,
@@ -117,6 +158,7 @@ export async function planHarvest(
         archive_to: plan.archive_to,
         plan: planRel,
         ledger: ledgerRel,
+        content_hash: contentHash,
       },
       initialState: "proposed",
     });
@@ -169,7 +211,7 @@ export async function runHarvest(cfg: Config, opts: HarvestOptions = {}): Promis
       store,
       hubRegistry,
       embed,
-      existingProposals: existingProposals.map((p) => ({ id: p.id, kind: p.kind })),
+      existingProposals,
     },
     max,
   );
