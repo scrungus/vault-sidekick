@@ -32,6 +32,12 @@ export function hashBlock(text: string): string {
   return createHash("sha256").update(normalized).digest("hex").slice(0, 16);
 }
 
+/** Render a vault path as a clickable Obsidian wikilink (stem only, no alias). */
+export function toLink(path: string): string {
+  const stem = (path.split("/").pop() ?? path).replace(/\.md$/, "");
+  return `[[${stem}]]`;
+}
+
 export async function readLedger(filePath: string): Promise<LedgerEntry[]> {
   if (!existsSync(filePath)) return [];
   const text = await readFile(filePath, "utf-8");
@@ -72,7 +78,7 @@ export async function appendLedgerEntries(
   const rows = entries
     .map(
       (e) =>
-        `| ${e.hash} | ${sanitizeCell(e.source)} | ${e.disposition} | ${sanitizeCell(e.destination)} | ${e.when} |`,
+        `| ${e.hash} | ${sanitizeCell(toLink(e.source))} | ${e.disposition} | ${sanitizeCell(toLink(e.destination))} | ${e.when} |`,
     )
     .join("\n");
   await writeFile(filePath, existing + rows + "\n", "utf-8");

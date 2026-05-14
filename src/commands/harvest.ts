@@ -5,7 +5,7 @@ import { scanVault, type NoteIndex } from "../vault/scanner.js";
 import { loadEmbeddings, type EmbeddingStore } from "../embeddings/loader.js";
 import { createEmbedder } from "../embeddings/embedder.js";
 import { buildHubRegistry, type HubRegistry } from "../harvest/hubs.js";
-import { loadSeenHashes } from "../harvest/ledger.js";
+import { loadSeenHashes, toLink } from "../harvest/ledger.js";
 import { classifyDailyNote } from "../harvest/classify.js";
 import { resolveBlocks } from "../harvest/resolve.js";
 import { writeHarvestPlan, summarizePlan, type HarvestPlan } from "../harvest/plan.js";
@@ -84,6 +84,8 @@ export async function planHarvest(
       journalDir: cfg.harvest.journal_dir,
       fleetingFile: cfg.harvest.fleeting_file,
       dailyDate,
+      sourceDailyPath: dailyRel,
+      archiveDir: cfg.harvest.archive_dir,
     });
 
     const plan: HarvestPlan = {
@@ -100,11 +102,15 @@ export async function planHarvest(
       [...ctx.existingProposals, ...proposals.map((p) => ({ id: p.id, kind: p.kind }))],
       "HARVEST",
     );
+    const destinations = [
+      ...new Set(resolved.map((b) => b.destination).filter((d): d is string => !!d)),
+    ];
+    const routes = destinations.map(toLink).join(" · ");
     proposals.push({
       id,
       kind: "HARVEST",
-      title: `harvest ${dailyRel} — ${summarizePlan(plan)}`,
-      reason: `${resolved.length} blocks → archive to ${plan.archive_to}`,
+      title: `harvest ${toLink(dailyRel)} — ${summarizePlan(plan)}`,
+      reason: `${resolved.length} block(s) → ${routes || "(fleeting)"}`,
       action: {
         op: "harvest",
         daily: dailyRel,

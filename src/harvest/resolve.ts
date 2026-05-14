@@ -32,6 +32,21 @@ export interface ResolveOptions {
   fleetingFile: string;
   /** YYYY-MM-DD of the source daily note, for monthly-journal routing. */
   dailyDate: string;
+  /** The daily note being harvested — must never be an append target. */
+  sourceDailyPath: string;
+  /** Archive dir — notes already here are not valid append targets. */
+  archiveDir: string;
+}
+
+const DAILY_NOTE_RE = /^\d{4}-\d{2}-\d{2}\.md$/;
+
+/** A note is a valid append/extract candidate only if it's a real permanent note. */
+function isValidTarget(path: string, opts: ResolveOptions): boolean {
+  if (path === opts.sourceDailyPath) return false;
+  if (path.startsWith(`${opts.archiveDir}/`)) return false;
+  const base = path.split("/").pop() ?? "";
+  if (DAILY_NOTE_RE.test(base)) return false; // any daily note — it'll be harvested too
+  return true;
 }
 
 interface ResolveLlmResponse {
@@ -104,6 +119,7 @@ export async function resolveBlocks(opts: ResolveOptions): Promise<ResolvedBlock
     for (const h of hits) {
       if (seen.has(h.source_path)) continue;
       if (!opts.index.notes.has(h.source_path)) continue; // skip stale embeddings
+      if (!isValidTarget(h.source_path, opts)) continue; // no dailies/archived/self
       seen.add(h.source_path);
       pending[i]!.candidates.push({
         path: h.source_path,
