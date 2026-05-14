@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import type { Config } from "../config.js";
 import { scanVault, type NoteIndex } from "../vault/scanner.js";
 import {
@@ -269,6 +269,21 @@ export async function runFullPass(cfg: Config, opts: RunOptions = {}): Promise<v
 
   // ---- Step 6: daily insights report ----
   await runInsights(cfg);
+
+  // ---- Step 6b: commit loose inbox outputs ----
+  // Executors commit their own content changes, but proposals.md, the
+  // harvest-ledger, the fleeting collector, and the daily-insights report are
+  // written outside any executor. Without this commit they'd never be pushed.
+  if (!opts.dryRun) {
+    const inboxRel = relative(cfg.vault.path, cfg.inbox.dir);
+    await git.stage([inboxRel]);
+    const housekeepingSha = await git.commit(
+      "vault-sidekick: update inbox (proposals, insights, ledger)",
+    );
+    if (housekeepingSha) {
+      console.log(`[run] committed inbox outputs (${housekeepingSha.slice(0, 7)})`);
+    }
+  }
 
   // ---- Step 7: push to origin (batched) ----
   if (!opts.dryRun && !opts.skipPush && cfg.git.enabled) {
