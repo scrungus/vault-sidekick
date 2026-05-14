@@ -52,7 +52,7 @@ function isValidTarget(path: string, opts: ResolveOptions): boolean {
 interface ResolveLlmResponse {
   decisions: Array<{
     id: number;
-    action: "append" | "extract";
+    action: "append" | "extract" | "fleeting";
     target?: string;
     new_title?: string;
     reason: string;
@@ -79,18 +79,12 @@ export async function resolveBlocks(opts: ResolveOptions): Promise<ResolvedBlock
   }
   const pending: Pending[] = [];
 
-  // Pass 1: journal + fleeting resolve locally; extract/append queue for the LLM.
+  // Pass 1: journal resolves locally (hub vs monthly). Everything else —
+  // extract, append AND fleeting — goes through the resolver so the LLM makes
+  // the final call WITH knowledge of what notes exist. The classifier's
+  // disposition is only a hint; a "fleeting" pointer that clearly belongs in
+  // an existing resource note should append there, not languish.
   for (const block of opts.blocks) {
-    if (block.disposition === "fleeting") {
-      resolved.push({
-        hash: block.hash,
-        text: block.text,
-        disposition: "fleeting",
-        destination: opts.fleetingFile,
-        reason: block.reason,
-      });
-      continue;
-    }
     if (block.disposition === "journal") {
       const hub = block.genre ? resolveHub(opts.hubRegistry, block.genre) : null;
       resolved.push({
@@ -130,15 +124,20 @@ export async function resolveBlocks(opts: ResolveOptions): Promise<ResolvedBlock
     }
   }
 
-  // Pass 3: one batched Claude call resolves append-target vs extract-new for all.
-  const prompt = `For each block, decide whether it belongs INSIDE one of its candidate notes (APPEND) or deserves its own new note (EXTRACT).
+  // Pass 3: one batched Claude call makes the final placement call for each block.
+  const prompt = `For each block, decide where it belongs. A classifier already gave a "suggested" disposition — treat it as a hint, but you can see the candidate notes it couldn't, so you make the final call.
 
-Append only when the block genuinely extends a candidate's topic. When in doubt, prefer EXTRACT — a slightly redundant new note beats content buried in the wrong place.
+- **append** — the block extends one of its candidate notes. Pick the target path.
+- **extract** — the block is a developed idea that deserves its own note. Give a title.
+- **fleeting** — the block is too thin to stand alone AND none of the candidates is a genuine home. It goes to a shared review collector.
+
+Prefer **append** whenever there's a real topical match — even a short one-line pointer should append to an existing resource/topic note rather than languish as fleeting. Only choose **fleeting** when there's genuinely no good home. Prefer **extract** over a weak append — a slightly redundant new note beats content buried in the wrong place.
 
 Blocks:
 ${JSON.stringify(
   pending.map((p) => ({
     id: p.id,
+    suggested: p.block.disposition,
     block: p.block.text,
     candidates: p.candidates,
   })),
@@ -146,7 +145,7 @@ ${JSON.stringify(
   2,
 )}
 
-For each: id, action ("append"|"extract"), target (candidate path — required if append), new_title (proposed note title — required if extract), reason (≤ 15 words).
+For each: id, action ("append"|"extract"|"fleeting"), target (candidate path — required if append), new_title (proposed note title — required if extract), reason (≤ 15 words).
 
 Output shape: {"decisions": [{"id": ..., "action": ..., "target": ..., "new_title": ..., "reason": ...}]}`;
 
@@ -168,15 +167,33 @@ Output shape: {"decisions": [{"id": ..., "action": ..., "target": ..., "new_titl
         destination: d.target,
         reason: d.reason || "extends an existing note",
       });
-    } else {
-      // EXTRACT — Claude said so, or the append target was missing/invalid.
-      const title = sanitizeTitle(d?.new_title || p.block.text.slice(0, 60)) || "Untitled harvest";
+    } else if (d && d.action === "fleeting") {
+      resolved.push({
+        hash: p.block.hash,
+        text: p.block.text,
+        disposition: "fleeting",
+        destination: opts.fleetingFile,
+        reason: d.reason || "too thin, no good home",
+      });
+    } else if (d && d.action === "extract") {
+      const title = sanitizeTitle(d.new_title || p.block.text.slice(0, 60)) || "Untitled harvest";
       resolved.push({
         hash: p.block.hash,
         text: p.block.text,
         disposition: "extract",
         destination: `${title}.md`,
-        reason: d?.reason || "no strong candidate — new note",
+        reason: d.reason || "developed idea — new note",
+      });
+    } else {
+      // No usable decision — fall back to the classifier's original intent.
+      const fallbackFleeting = p.block.disposition === "fleeting";
+      const title = sanitizeTitle(p.block.text.slice(0, 60)) || "Untitled harvest";
+      resolved.push({
+        hash: p.block.hash,
+        text: p.block.text,
+        disposition: fallbackFleeting ? "fleeting" : "extract",
+        destination: fallbackFleeting ? opts.fleetingFile : `${title}.md`,
+        reason: "resolver gave no decision — fell back to classifier intent",
       });
     }
   }
